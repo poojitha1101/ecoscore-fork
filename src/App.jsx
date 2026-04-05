@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import InputPanel from "./components/InputPanel";
 import ConsumerInputPanel from "./components/ConsumerInputPanel";
 import Score from "./components/Score";
@@ -9,62 +9,100 @@ import "./styles/App.css";
 
 function App() {
   const [mode, setMode] = useState("consumer"); // "business" or "consumer"
+  
+  // Core state for environmental factors
   const [inputs, setInputs] = useState({
-    categoryVal: 10,
-    materialVal: 15,
-    transportVal: 20,
-    packagingVal: 10,
+    categoryVal: 0,
+    materialVal: 0,
+    transportVal: 0,
+    packagingVal: 0,
+    name: "AWAITING_SCAN"
   });
+
   const [baselineCarbon, setBaselineCarbon] = useState(null);
   const [foundProducts, setFoundProducts] = useState([]);
+  
+  // Real-Time Response: Results are computed instantly on every state change
   const results = calculateEcoScore(inputs);
 
-  if (baselineCarbon == null) setBaselineCarbon(results.carbon);
+  // Effect: Capture the baseline only once when the first valid data arrives
+  useEffect(() => {
+    if (results.carbon > 0 && baselineCarbon === null) {
+      setBaselineCarbon(results.carbon);
+    }
+  }, [results.carbon, baselineCarbon]);
+
+  // Handler for switching modes to prevent data cross-contamination
+  const handleModeChange = (newMode) => {
+    setMode(newMode);
+    setBaselineCarbon(null); // Reset baseline for fresh What-If simulation
+    setFoundProducts([]);    // Clear scan history
+    setInputs({
+      categoryVal: 0,
+      materialVal: 0,
+      transportVal: 0,
+      packagingVal: 0,
+      name: "AWAITING_SCAN"
+    });
+  };
 
   return (
     <div className="dashboard-container">
       <header className="hud-header">
         <h1 className="highlight">ECOSCORE // SUSTAINABILITY_TRACKER</h1>
+        
         <div className="mode-tabs">
           <button 
             className={`mode-tab ${mode === "consumer" ? "active" : ""}`}
-            onClick={() => setMode("consumer")}
+            onClick={() => handleModeChange("consumer")}
           >
-            CONSUMER
+            CONSUMER_OS
           </button>
           <button 
             className={`mode-tab ${mode === "business" ? "active" : ""}`}
-            onClick={() => setMode("business")}
+            onClick={() => handleModeChange("business")}
           >
-            BUSINESS
+            BUSINESS_PRO
           </button>
         </div>
-        <div className="status">SYSTEM_READY</div>
+        
+        <div className="status highlight">
+          {mode.toUpperCase()}_LINK_ACTIVE
+        </div>
       </header>
 
       <main className="hud-grid">
+        {/* LEFT PANEL: DATA ACQUISITION */}
         <section className="glass-card">
           {mode === "business" ? (
             <InputPanel inputs={inputs} setInputs={setInputs} />
           ) : (
             <ConsumerInputPanel 
-              foundProducts={foundProducts} 
+              setInputs={setInputs}
               setFoundProducts={setFoundProducts}
             />
           )}
         </section>
 
+        {/* CENTER PANEL: ANALYSIS HUD */}
         <section className="glass-card main-display">
-          <Score data={results} foundProducts={foundProducts} mode={mode} />
+          <Score 
+            data={results} 
+            productName={inputs.name} 
+            mode={mode} 
+          />
         </section>
 
+        {/* RIGHT PANEL: OPTIMIZATION & ALTERNATIVES */}
         <section className="glass-card">
           {mode === "business" ? (
-            <Simulator currentResults={results} baselineCarbon={baselineCarbon} />
+            <Simulator 
+              currentResults={results} 
+              baselineCarbon={baselineCarbon} 
+            />
           ) : (
             <AlternativesPanel 
               foundProducts={foundProducts} 
-              setFoundProducts={setFoundProducts}
             />
           )}
         </section>

@@ -1,56 +1,104 @@
+import { useState, useEffect } from 'react';
+import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { fetchProductData } from '../utils/api';
 import "../styles/InputPanel.css";
 
-const InputPanel = ({ inputs, setInputs }) => {
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setInputs({ ...inputs, [name]: parseFloat(value) });
-  };
+const ConsumerInputPanel = ({ setInputs, setFoundProducts }) => {
+  const [isScanning, setIsScanning] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let scanner = null;
+
+    if (isScanning) {
+      // 1. Explicitly enable Barcode formats (EAN/UPC) + QR
+      const formatsToSupport = [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+      ];
+
+      scanner = new Html5QrcodeScanner("reader", {
+        fps: 20,
+        qrbox: { width: 300, height: 180 }, // Rectangular for barcodes
+        aspectRatio: 1.777778,
+        formatsToSupport: formatsToSupport,
+        rememberLastUsedCamera: true,
+      });
+
+      scanner.render(
+        async (decodedText) => {
+          setError(null);
+          try {
+            // Immediately stop camera to prevent double-calls
+            await scanner.clear();
+            setIsScanning(false);
+            
+            const productData = await fetchProductData(decodedText);
+            if (productData) {
+              // Update main HUD
+              setInputs(productData);
+              // Add to History/Alternatives list
+              setFoundProducts(prev => [productData, ...prev]);
+            } else {
+              setError("PRODUCT_NOT_FOUND");
+            }
+          } catch (err) {
+            setError("SCAN_ERROR");
+            console.error(err);
+          }
+        },
+        (errorMessage) => {
+          console.error(errorMessage);
+          // 2. SILENCE THE ERRORS:
+          // Leaving this empty stops the 'NotFoundException' console spam.
+          // It only fires when a frame has no detectable code.
+        }
+      );
+    }
+
+    return () => {
+      if (scanner) {
+        scanner.clear().catch(e => console.warn("Scanner Cleanup:", e));
+      }
+    };
+  }, [isScanning, setInputs, setFoundProducts]);
 
   return (
-    <div className="input-panel">
-      <div className="input-group">
-        <label className="label highlight">01_PRODUCT_CATEGORY</label>
-        <select name="categoryVal" onChange={handleChange} className="hud-select">
-          <option value="10">Electronics</option>
-          <option value="5">Apparel</option>
-          <option value="8">Home Goods</option>
-          <option value="12">Industrial</option>
-        </select>
+    <div className="input-panel consumer-mode">
+      <div className="scanner-header">
+        <h2 className="highlight">CONSUMER_SCAN_OS</h2>
+        <p className="small-text">// TARGET: PRODUCT_BARCODE_OR_QR</p>
       </div>
 
-      <div className="input-group">
-        <label className="label highlight">02_MATERIAL_SELECTION</label>
-        <select name="materialVal" onChange={handleChange} className="hud-select">
-          <option value="15">Virgin Plastic</option>
-          <option value="8">Recycled Aluminum</option>
-          <option value="5">Organic Cotton</option>
-          <option value="3">Bamboo</option>
-        </select> [cite: 33]
-      </div>
+      {isScanning ? (
+        <div className="scanner-container">
+          <div id="reader"></div>
+          <button className="hud-button abort" onClick={() => setIsScanning(false)}>
+            TERMINATE_LINK
+          </button>
+        </div>
+      ) : (
+        <div className="init-view">
+          <div className="scan-animation-placeholder">
+            <div className="laser-line"></div>
+          </div>
+          <button className="hud-button init-scan" onClick={() => setIsScanning(true)}>
+            INITIALIZE_OPTIC_SCAN
+          </button>
+        </div>
+      )}
 
-      <div className="input-group">
-        <label className="label highlight">03_LOGISTICS_HUB</label>
-        <select name="transportVal" onChange={handleChange} className="hud-select">
-          <option value="20">Air Freight (Global)</option>
-          <option value="10">Sea Freight</option>
-          <option value="3">Road (Local Sourcing)</option>
-        </select> [cite: 34]
-      </div>
+      {error && <p className="error-msg highlight">!! {error} !!</p>}
 
-      <div className="input-group">
-        <label className="label highlight">04_PACKAGING_TYPE</label>
-        <select name="packagingVal" onChange={handleChange} className="hud-select">
-          <option value="10">Single-use Plastic</option>
-          <option value="5">Cardboard</option>
-          <option value="2">Biodegradable</option>
-        </select>
-      </div>
-      
-      <div className="system-note">
-        <p className="small-text">// DATA_INPUT_DEPENDENCY: ACTIVE</p> [cite: 79]
+      <div className="system-status">
+        <p className="small-text">// SENSOR_STATUS: {isScanning ? "SCANNING..." : "IDLE"}</p>
       </div>
     </div>
   );
 };
 
-export default InputPanel;
+export default ConsumerInputPanel;

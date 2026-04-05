@@ -1,52 +1,59 @@
 import "../styles/Simulator.css";
 
 const Simulator = ({ currentResults, baselineCarbon }) => {
-  // Improvement = ((Carbon_old - Carbon_new) / Carbon_old) * 100 [cite: 84]
-  const improvement = baselineCarbon > 0 
-    ? (((baselineCarbon - currentResults.carbon) / baselineCarbon) * 100).toFixed(1)
-    : 0;
-
-  const isPositive = improvement >= 0;
+  // 1. Calculate Improvement %
+  // Formula: ((Carbon_old - Carbon_new) / Carbon_old) * 100
+  const current = parseFloat(currentResults.carbon);
+  const baseline = parseFloat(baselineCarbon);
+  
+  const diff = baseline - current;
+  const improvementPct = baseline > 0 ? ((diff / baseline) * 100).toFixed(1) : 0;
+  const isPositive = diff >= 0;
 
   return (
     <div className="simulator-container">
       <div className="sim-header">
         <h2 className="highlight">OPTIMIZATION_LAB</h2>
-        <span className="small-text">// WHAT_IF_ENGINE_ACTIVE</span>
+        <p className="small-text">// ANALYZING_DECISION_IMPACT</p>
       </div>
 
-      <div className="comparison-box">
-        <div className="stat-line">
-          <span>BASELINE_CARBON:</span>
-          <span>{baselineCarbon} kg</span>
+      <div className="comparison-card">
+        <div className="box">
+          <span className="label">BASELINE</span>
+          <p className="val">{baseline.toFixed(3)}</p>
         </div>
-        <div className="stat-line highlight">
-          <span>CURRENT_CARBON:</span>
-          <span>{currentResults.carbon} kg</span>
-        </div>
-        <div className="impact-badge" style={{ borderColor: isPositive ? '#00ff88' : '#ff0055' }}>
-          <span className="label">IMPROVEMENT</span>
-          <h3 style={{ color: isPositive ? '#00ff88' : '#ff0055' }}>
-            {isPositive ? '+' : ''}{improvement}%
-          </h3>
+        <div className="arrow">→</div>
+        <div className="box">
+          <span className="label">OPTIMIZED</span>
+          <p className="val highlight">{current.toFixed(3)}</p>
         </div>
       </div>
 
-      <div className="investor-insights">
-        <p className="label highlight">INVESTOR_INSIGHTS</p>
-        <ul className="insight-list">
-          <li>• Scalable Carbon Savings: { (baselineCarbon - currentResults.carbon).toFixed(2) } units/pc [cite: 105]</li>
-          <li>• Relative Performance: {currentResults.verdict} [cite: 88]</li>
-          <li>• Funding Eligibility: {currentResults.score > 70 ? 'HIGH' : 'LOW'} [cite: 4, 109]</li>
-        </ul>
+      <div className={`impact-ribbon ${isPositive ? 'gain' : 'loss'}`}>
+        <span className="label">NET_IMPACT</span>
+        <h3>{isPositive ? '+' : ''}{improvementPct}%</h3>
+      </div>
+
+      <div className="investor-metrics">
+        <p className="section-tag highlight">INVESTOR_INSIGHTS</p>
+        <div className="insight-row">
+          <span>SCALABLE_SAVINGS:</span>
+          <span className="highlight">{diff.toFixed(3)} units/pc</span>
+        </div>
+        <div className="insight-row">
+          <span>FUNDING_VIABILITY:</span>
+          <span style={{ color: currentResults.score > 70 ? '#00ff88' : '#ff0055' }}>
+            {currentResults.score > 70 ? 'OPTIMAL' : 'REJECTED'}
+          </span>
+        </div>
       </div>
 
       <div className="optimization-engine">
-        <p className="label">// SYSTEM_SUGGESTION</p>
-        <p className="suggestion-text">
-          {currentResults.score < 70 
-            ? "Try switching to 'Local Sourcing' to minimize transport emissions." 
-            : "Optimization complete. Current configuration is investor-ready."} [cite: 41, 42]
+        <p className="small-text">// SYSTEM_SUGGESTION:</p>
+        <p className="suggestion">
+          {diff <= 0 
+            ? "Current configuration exceeds baseline. Revert transport or material changes." 
+            : "Optimization detected. This configuration improves trust for Series A funding."}
         </p>
       </div>
     </div>

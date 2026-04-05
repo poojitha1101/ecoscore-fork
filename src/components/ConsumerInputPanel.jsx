@@ -1,84 +1,107 @@
-import { useState } from "react";
-import "../styles/ConsumerInputPanel.css";
+import { useState, useEffect } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
+import { fetchProductData } from '../utils/api';
+import "../styles/InputPanel.css";
 
-const ConsumerInputPanel = ({ foundProducts, setFoundProducts }) => {
-  const [productName, setProductName] = useState("");
+const ConsumerInputPanel = ({ setInputs, setFoundProducts }) => {
+  const [isScanning, setIsScanning] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Add product immediately without API delay
-  const handleAddProduct = () => {
-    if (!productName.trim()) return;
+  const handleScanSuccess = async (decodedText, scanner) => {
+    try {
+      const productData = await fetchProductData(decodedText);
+      
+      if (productData) {
+        // 1. Update main App state to refresh Score HUD
+        setInputs(productData);
 
-    // Add product to found products list
-    const newProduct = {
-      id: Date.now(),
-      name: productName,
-      score: Math.floor(Math.random() * 40) + 60, // Random score between 60-100
-      carbon: (Math.random() * 20 + 5).toFixed(2), // Random carbon between 5-25
-      verdict: Math.random() > 0.3 ? "SUSTAINABLE" : "MODERATE"
-    };
-    
-    setFoundProducts(prev => [...prev, newProduct]);
-    
-    // Clear input
-    setProductName("");
-  };
+        // 2. Add to history for the Alternatives comparison
+        setFoundProducts(prev => {
+          // Avoid duplicates in the history list
+          if (prev.find(p => p.id === decodedText)) return prev;
+          return [{ id: decodedText, ...productData }, ...prev];
+        });
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleAddProduct();
+        // Stop scanner after success to show results
+        scanner.clear();
+        setIsScanning(false);
+      } else {
+        setError("PRODUCT_NOT_FOUND_IN_DATABASE");
+      }
+    } catch (err) {
+      setError("NETWORK_PROTOCOL_ERROR");
+      console.error(err);
     }
   };
 
-  const handleRemoveProduct = (productId) => {
-    setFoundProducts(prev => prev.filter(product => product.id !== productId));
-  };
+  useEffect(() => {
+    let scanner = null;
 
+    if (isScanning) {
+      // Initialize scanner with a square box optimized for QR codes
+      scanner = new Html5QrcodeScanner("reader", {
+        fps: 15,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+      });
+
+      scanner.render(
+        async (decodedText) => {
+          setError(null);
+          await handleScanSuccess(decodedText, scanner);
+        },
+        (err) => {
+          // Silent failure during continuous scanning
+          console.log(err);
+        }
+      );
+    }
+
+    return () => {
+      if (scanner) {
+        scanner.clear().catch(error => console.error("Scanner clear failed", error));
+      }
+    };
+  }, [isScanning]);
   return (
-    <div className="consumer-input-panel">
-      <div className="input-group">
-        <label className="label highlight">ADD_PRODUCTS</label>
-        <input
-          type="text"
-          value={productName}
-          onChange={(e) => setProductName(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="Enter product name..."
-          className="product-input"
-        />
-        <button 
-          onClick={handleAddProduct}
-          disabled={!productName.trim()}
-          className="add-button"
-        >
-          ADD
-        </button>
+    <div className="input-panel consumer-theme">
+      <div className="scanner-header">
+        <h2 className="highlight">CONSUMER_SCAN_MODE</h2>
+        <p className="small-text">// TARGET: QR_CODE / BARCODE</p>
       </div>
 
-      {/* Display added products immediately below add bar */}
-      {foundProducts.length > 0 && (
-        <div className="added-products">
-          <h4 className="added-products-title">ADDED_PRODUCTS</h4>
-          <div className="products-list">
-            {foundProducts.map((product) => (
-              <div key={product.id} className="added-product-item">
-                <div className="product-info">
-                  <div className="product-name">{product.name}</div>
-                  <div className="product-score">Score: {product.score}</div>
-                </div>
-                <button 
-                  className="remove-button"
-                  onClick={() => handleRemoveProduct(product.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+      {isScanning ? (
+        <div className="scanner-viewport">
+          <div id="reader"></div>
+          <button 
+            className="hud-button abort-btn" 
+            onClick={() => setIsScanning(false)}
+          >
+            TERMINATE_SCAN
+          </button>
+        </div>
+      ) : (
+        <div className="init-view">
+          <div className="scan-placeholder">
+            <div className="scan-line"></div>
           </div>
+          <button 
+            className="hud-button init-scan" 
+            onClick={() => setIsScanning(true)}
+          >
+            INITIALIZE_OPTIC_LINK
+          </button>
         </div>
       )}
-      
+
+      {error && (
+        <div className="error-msg highlight">
+          [!] ERROR: {error}
+        </div>
+      )}
+
       <div className="system-note">
-        <p className="small-text">// DATA_INPUT_DEPENDENCY: ACTIVE</p>
+        <p className="small-text">// ENABLING_REAL_TIME_ANALYSIS</p>
       </div>
     </div>
   );
